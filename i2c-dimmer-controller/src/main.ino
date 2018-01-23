@@ -13,7 +13,7 @@
 // Assume CLK = 8MHz
 // TCCR1 |= (1 << CS13) | (1 << CS11) == CLK/512 == 15625Hz
 // Zerocrossing for 50Hz AC is 100Hz
-//   -- giving 152.5 ticks beetween Zerocrossing
+//   -- giving 156.25 ticks beetween Zerocrossing
 
 #define I2C_SLAVE_ADDRESS 0x4
 
