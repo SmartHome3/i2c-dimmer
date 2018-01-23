@@ -2,6 +2,19 @@
 #include <Wire.h>
 #include <EnableInterrupt.h>
 
+// Uses Timer1 to delay pulsing a TRIAC by an amount of time relative to
+// detecting a zero crossing of the A/C signal. Increasing the delay decreases
+// the amount of time current flows through the lamp and dims it.
+// Amount of time to delay is passed in as a brightness level via i2c
+// and translated to the required delay.
+
+// Timer1 Setup
+//
+// Assume CLK = 8MHz
+// TCCR1 |= (1 << CS13) | (1 << CS11) == CLK/512 == 15625Hz
+// Zerocrossing for 50Hz AC is 100Hz
+//   -- giving 152.5 ticks beetween Zerocrossing
+
 #define I2C_SLAVE_ADDRESS 0x4
 
 #define DETECT PB4  //zero cross detect pin
@@ -12,8 +25,8 @@
 #define MIN   40  //Min phase cut delay before keeping the traic switched ON
 #define MAX  150  //Max phase cut delay before keeping the triac switched OFF
 
-// Dim level is the amount of time the TRIAC remains OFF after
-// the zercross is detected
+// Dim level is the amount of time in ticks that the TRIAC
+// remains OFF after zercross is detected
 int dim_level = MAX; // default dim level to max (OFF)
 
 // Brightness is on the scale from 0 thru 100
@@ -34,20 +47,18 @@ void zeroCrossingInterrupt() {
   }
   else
   {
-    // Set the timer1 to delay by the dim_level amount of time required
-    // for the phase cut
     OCR1A = dim_level;
     TCCR1 |= (1 << CTC1);
-    TCCR1 |= (1 << CS13) | (1 << CS11);
+    TCCR1 |= (1 << CS13) | (1 << CS11); // Timer1/512
   }
 }
 
-// Delay from Zerocorssing is up, switch TRIAC ON, and set up
+// Time OFF delay after Zerocrossing is up, switch TRIAC ON, and set up
 // the timer start value to overflow once the pulse to triac has been sent
 ISR(TIMER1_COMPA_vect) {
-  TCCR1 = 0x00;
+  TCCR1 = 0x00;             //Stop Timer
   TCCR1 |= (1 << CTC1);
-  TCCR1 |= (1 << CS13) | (1 << CS11);
+  TCCR1 |= (1 << CS13) | (1 << CS11);  // Timer1/512  (15625 Hz based on 8MHz Clock)
   digitalWrite(GATE, HIGH); //set TRIAC gate to high
   TCNT1 = 256 - PULSE;      //trigger overflow for TRIAC pulse width
 }
@@ -61,16 +72,15 @@ ISR(TIMER1_OVF_vect) {
 // Set brightness based on 0 thru 100
 // 0  = off
 // 100  = max brightness
-void bri2dim(uint8_t brightness)
+void bri2dim()
 {
   float scale = (MAX - MIN) / 100;
   dim_level = MAX - (uint8_t)(scale * brightness);
 }
 
-
-// Receive an i2c instruction from Master. An instruction is just a byte uint8_t
+// Receive an i2c instruction from Master. An instruction is just a uint8_t
 // The byte indicates the brightness on a scale from 0 theu 100,
-// with 100 being completly off, and 100 being completly on
+// with 100 being completly off, and 0 being completly on
 void setBrightness(uint8_t byte_count)
 {
   //first byte is command, next 2 bytes is data for command. Total must equal 3 bytes.
@@ -95,9 +105,11 @@ void setBrightness(uint8_t byte_count)
   }
 
   // Turn the Brightness into a dim_level
-  bri2dim(brightness);
+  bri2dim();
 }
 
+
+// Return the current brightness via i2c
 void getBrightness()
 {
   Wire.write(brightness);
@@ -106,7 +118,7 @@ void getBrightness()
 void setup() {
 
   // Setup i2C
-  Wire.begin(I2C_SLAVE_ADDRESS); // join i2c network
+  Wire.begin(I2C_SLAVE_ADDRESS);  // join i2c network
   Wire.onReceive(setBrightness);  // Recieve a command from the master (set input brightness)
   Wire.onRequest(getBrightness);  // Service a request from the master (get input brightness)
 
@@ -116,7 +128,7 @@ void setup() {
   //Enable Timer1 comparator & overflow
   TIMSK |= (1 << OCIE1A) | (1 << TOIE1);
 
-  //
+  // Attach the interrupt handler to the pin that detects Zerocrossing
   enableInterrupt(DETECT, zeroCrossingInterrupt, RISING);
 
 }
