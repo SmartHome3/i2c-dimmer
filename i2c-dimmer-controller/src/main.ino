@@ -7,16 +7,17 @@
 #define DETECT PB4  //zero cross detect pin
 #define GATE PB3    //TRIAC gate pin
 
-#define PULSE 2  //TRICA trigger pulse width (in timer counts)
+#define PULSE 2  //TRIAC trigger pulse width (in timer counts)
 
-#define MIN   40  //Min phase cut delay before keeping the traic switched on
-#define MAX  150  //Max phase cut delay before keeping the triac switched off
+#define MIN   40  //Min phase cut delay before keeping the traic switched ON
+#define MAX  150  //Max phase cut delay before keeping the triac switched OFF
 
 // Dim level is the amount of time the TRIAC remains OFF after
 // the zercross is detected
-int dim_level = MAX; // Current value of dim level Set the initial dim level to max (OFF)
+int dim_level = MAX; // default dim level to max (OFF)
 
-// Brightness is on the scale from
+// Brightness is on the scale from 0 thru 100
+// 0 = COMPLETLY OFF, 100 = COMPLETLY ON
 uint8_t brightness;
 
 //zero cross detect interrupt hander
@@ -25,11 +26,11 @@ void zeroCrossingInterrupt() {
   //Should we just leave the triac competely ON or OFF
   if (dim_level <= MIN)
   {
-    digitalWrite(GATE, HIGH);
+    digitalWrite(GATE, HIGH); //Leave On
   }
   else if (dim_level >= MAX)
   {
-    digitalWrite(GATE, LOW);
+    digitalWrite(GATE, LOW); //Leave Off
   }
   else
   {
@@ -48,7 +49,7 @@ ISR(TIMER1_COMPA_vect) {
   TCCR1 |= (1 << CTC1);
   TCCR1 |= (1 << CS13) | (1 << CS11);
   digitalWrite(GATE, HIGH); //set TRIAC gate to high
-  TCNT1 = 256 - PULSE;    //trigger pulse width
+  TCNT1 = 256 - PULSE;      //trigger overflow for TRIAC pulse width
 }
 
 // Pluse has bee sent, now turn off the TRIAC
