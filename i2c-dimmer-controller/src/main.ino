@@ -3,7 +3,7 @@
 #include <EnableInterrupt.h>
 
 // Uses Timer1 to delay pulsing a TRIAC by an amount of time relative to
-// detecting a zero crossing of the A/C signal. Increasing the delay decreases
+// ZEROing a zero crossing of the A/C signal. Increasing the delay decreases
 // the amount of time current flows through the lamp and dims it.
 // Amount of time to delay is passed in as a brightness level via i2c
 // and translated to the required delay.
@@ -17,31 +17,31 @@
 
 #define I2C_SLAVE_ADDRESS 0x4
 
-#define DETECT PB4  //zerocrossing detect pin
-#define GATE PB3    //TRIAC gate pin
+#define ZERO PB4  //zerocrossing ZERO pin
+#define TRIAC PB3    //TRIAC TRIAC pin
 
-#define PULSE 2  //TRIAC trigger pulse width (in timer counts)
+#define TRIAC_PULSE_WIDTH 2  //TRIAC trigger TRIAC_PULSE_WIDTH width (in timer ticks)
 
-#define MIN   40  //Min phase cut delay before keeping the traic switched ON
-#define MAX  150  //Max phase cut delay before keeping the triac switched OFF
+#define DELAY_MIN   40  //DELAY_MIN phase cut delay before keeping the traic switched ON
+#define DELAY_MAX  150  //DELAY_MAX phase cut delay before keeping the triac switched OFF
 
 // Brightness is on the scale from 0 thru 100
 // 0 = COMPLETLY OFF, 100 = COMPLETLY ON
 uint8_t brightness = 0;
 
-//zero cross detect interrupt hander
+//zero cross ZERO interrupt hander
 void zeroCrossingInterrupt() {
 
-  int delay = bri2dim(brightness);
+  int delay = bri2delay(brightness);
 
   //Should we just leave the triac competely ON or OFF
-  if (delay <= MIN)
+  if (delay <= DELAY_MIN)
   {
-    digitalWrite(GATE, HIGH); //Leave On
+    digitalWrite(TRIAC, HIGH); //Leave On
   }
-  else if (delay >= MAX)
+  else if (delay >= DELAY_MAX)
   {
-    digitalWrite(GATE, LOW); //Leave Off
+    digitalWrite(TRIAC, LOW); //Leave Off
   }
   else
   {
@@ -52,30 +52,30 @@ void zeroCrossingInterrupt() {
 }
 
 // Time OFF delay after Zerocrossing is now up, switch TRIAC ON, and set
-// the timer start value to overflow once the pulse to triac has been sent
+// the timer start value to overflow once the TRIAC_PULSE_WIDTH to triac has been sent
 ISR(TIMER1_COMPA_vect) {
   TCCR1 = 0x00;             //Stop Timer & Reset it
   TCCR1 |= (1 << CTC1);
   TCCR1 |= (1 << CS13) | (1 << CS11);
-  digitalWrite(GATE, HIGH); //set TRIAC gate to high (ON)
-  TCNT1 = 256 - PULSE;      //set timer to trigger overflow after TRIAC pulse width time
+  digitalWrite(TRIAC, HIGH); //set TRIAC TRIAC to high (ON)
+  TCNT1 = 256 - TRIAC_PULSE_WIDTH;      //set timer to trigger overflow after TRIAC TRIAC_PULSE_WIDTH width time
 }
 
-// Pluse has bee sent, now switch off the gate of the
+// Pluse has bee sent, now switch off the TRIAC of the
 // TRIAC, which will switch off emmitter at next zerocrossing.
 ISR(TIMER1_OVF_vect) {
   TCCR1 = 0x00;
-  digitalWrite(GATE, LOW);
+  digitalWrite(TRIAC, LOW);
 }
 
 // Convert brightness level to an amount of time in ticks that the TRIAC
-// remains OFF after zerocrossing is detected
+// remains OFF after zerocrossing is ZEROed
 // 0  = off
-// 100  = max brightness (ON)
-int bri2dim(uint8_t brightness)
+// 100  = DELAY_MAX brightness (ON)
+int bri2delay(uint8_t brightness)
 {
-  float scale = (MAX - MIN) / 101;
-  return MAX - (uint8_t)(scale * brightness);
+  float scale = (DELAY_MAX - DELAY_MIN) / 101;
+  return DELAY_MAX - (uint8_t)(scale * brightness);
 }
 
 // Receive an i2c instruction from Master. An instruction is just a uint8_t
@@ -101,7 +101,7 @@ void setBrightnessLevel(uint8_t byte_count)
   // expect input values 0 thru 100
   brightness = Wire.read();
 
-  // Clamp to 100 as max
+  // Clamp to 100 as DELAY_MAX
   if(brightness>100)
   {
     brightness=100;
@@ -127,14 +127,14 @@ void setup() {
   // Service a request from the master (to get current brightness)
   Wire.onRequest(sendBrightnessResponse);
 
-  pinMode(DETECT, INPUT_PULLUP);  //Zerocrossing Input
-  pinMode(GATE, OUTPUT);          //TRIAC gate control
+  pinMode(ZERO, INPUT_PULLUP);  //Zerocrossing Input
+  pinMode(TRIAC, OUTPUT);          //TRIAC TRIAC control
 
   //Enable Timer1 comparator & overflow functions
   TIMSK |= (1 << OCIE1A) | (1 << TOIE1);
 
-  // Attach the interrupt handler to the pin that detects Zerocrossing
-  enableInterrupt(DETECT, zeroCrossingInterrupt, RISING);
+  // Attach the interrupt handler to the pin that ZEROs Zerocrossing
+  enableInterrupt(ZERO, zeroCrossingInterrupt, RISING);
 
 }
 
